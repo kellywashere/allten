@@ -3,6 +3,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <ctype.h>
+
+static bool g_only_show_solvable = false; // when true: only showw whether or not sol exists
+static bool g_show_all = false;           // when true: all solutions are given for each target
 
 typedef struct NumDen {
 	int num;
@@ -117,19 +121,7 @@ void print_solution(const char* format, NumDen* res,
 		fprintf(stderr, "Invalid solution given to print_solution()\n");
 }
 
-void usage(const char* progname) {
-	printf("Usage: %s [options] nr1 nr2 nr3 nr4 [target]\n", progname);
-	printf("\nIf no target given, all targets 1..10 are attempted\n");
-	printf("Options:\n");
-	printf("  [-]s:      only shows if the problem is solvable\n");
-	printf("  [-]a:      shows ALL solutions (tends to produce a lot of output\n");
-	printf("  [-]o<ops>: allowed operations\n");
-	printf("               e.g.: o+-/*c\n");
-	printf("               operator c is the concat operator. For example c(a,b) = 10*a + b\n");
-	printf("               So c(3,1) = 31\n");
-}
-
-void solve(int n[], int target, bool find_all) {
+bool solve(int n[], int target) {
 	// There are 5 basic forms
 	// (a@b)@(c@d)
 	// ((a@b)@c)@d
@@ -139,6 +131,7 @@ void solve(int n[], int target, bool find_all) {
 	// @ is operator. This can only be concat when applied to original numbers, not to intermed results
 	NumDen nd[4];
 	NumDen res1, res2, res3;
+	bool solvable = false;
 
 	int idx[4] = {0, 1, 2, 3}; // idx into n[]
 	do { // loops over permutations of idx[]
@@ -153,10 +146,12 @@ void solve(int n[], int target, bool find_all) {
 					(*ops[op2])(&nd[2], &nd[3], &res2);
 					(*ops[op3])(&res1, &res2, &res3);
 					if (check_answer(&res3, target)) {
-						print_solution("(%d%s%d)%s(%d%s%d)", &res3,
-							nd[0].num, nd[1].num, nd[2].num, nd[3].num, op1, op3, op2);
-						if (!find_all)
-							return;
+						solvable = true;
+						if (!g_only_show_solvable)
+							print_solution("(%d%s%d)%s(%d%s%d)", &res3,
+								nd[0].num, nd[1].num, nd[2].num, nd[3].num, op1, op3, op2);
+						if (!g_show_all)
+							return true;
 					}
 					if (op2 != CONCAT) {
 						// ((a@b)@c)@d
@@ -164,60 +159,123 @@ void solve(int n[], int target, bool find_all) {
 						(*ops[op2])(&res1, &nd[2], &res2);
 						(*ops[op3])(&res2, &nd[3], &res3);
 						if (check_answer(&res3, target)) {
-							print_solution("((%d%s%d)%s%d)%s%d", &res3,
-								nd[0].num, nd[1].num, nd[2].num, nd[3].num, op1, op2, op3);
-							if (!find_all)
-								return;
+							solvable = true;
+							if (!g_only_show_solvable)
+								print_solution("((%d%s%d)%s%d)%s%d", &res3,
+									nd[0].num, nd[1].num, nd[2].num, nd[3].num, op1, op2, op3);
+							if (!g_show_all)
+								return true;
 						}
 						// (a@(b@c))@d
 						(*ops[op1])(&nd[1], &nd[2], &res1);
 						(*ops[op2])(&nd[0], &res1, &res2);
 						(*ops[op3])(&res2, &nd[3], &res3);
 						if (check_answer(&res3, target)) {
-							print_solution("(%d%s(%d%s%d))%s%d", &res3,
-								nd[0].num, nd[1].num, nd[2].num, nd[3].num, op2, op1, op3);
-							if (!find_all)
-								return;
+							solvable = true;
+							if (!g_only_show_solvable)
+								print_solution("(%d%s(%d%s%d))%s%d", &res3,
+									nd[0].num, nd[1].num, nd[2].num, nd[3].num, op2, op1, op3);
+							if (!g_show_all)
+								return true;
 						}
 						// a@((b@c)@d)
 						(*ops[op1])(&nd[1], &nd[2], &res1);
 						(*ops[op2])(&res1, &nd[3], &res2);
 						(*ops[op3])(&nd[0], &res2, &res3);
 						if (check_answer(&res3, target)) {
-							print_solution("%d%s((%d%s%d)%s%d)", &res3,
-								nd[0].num, nd[1].num, nd[2].num, nd[3].num, op3, op1, op2);
-							if (!find_all)
-								return;
+							solvable = true;
+							if (!g_only_show_solvable)
+								print_solution("%d%s((%d%s%d)%s%d)", &res3,
+									nd[0].num, nd[1].num, nd[2].num, nd[3].num, op3, op1, op2);
+							if (!g_show_all)
+								return true;
 						}
 						// a@(b@(c@d))
 						(*ops[op1])(&nd[2], &nd[3], &res1);
 						(*ops[op2])(&nd[1], &res1, &res2);
 						(*ops[op3])(&nd[0], &res2, &res3);
 						if (check_answer(&res3, target)) {
-							print_solution("%d%s(%d%s(%d%s%d))", &res3,
-								nd[0].num, nd[1].num, nd[2].num, nd[3].num, op3, op2, op1);
-							if (!find_all)
-								return;
+							solvable = true;
+							if (!g_only_show_solvable)
+								print_solution("%d%s(%d%s(%d%s%d))", &res3,
+									nd[0].num, nd[1].num, nd[2].num, nd[3].num, op3, op2, op1);
+							if (!g_show_all)
+								return true;
 						}
 					}
 				}
 			}
 		}
 	} while (next_perm(idx, 4));
+	return solvable;
+}
+
+void usage(const char* progname) {
+	printf("Usage: %s [options] nr1 nr2 nr3 nr4\n", progname);
+	printf("\nIf no target given, all targets 1..10 are attempted\n");
+	printf("Options:\n");
+	printf("  s:      only shows whether or not the problem is solvable\n");
+	printf("  a:      shows ALL solutions (tends to produce a lot of output\n");
+	printf("  t<n>:   instead of finding all targets 1..10, finds only give target\n");
+	printf("  o<ops>: allowed operations. Default: +-*/c\n");
+	printf("            e.g.: o+-/*c\n");
+	printf("            operator c is the concat operator. For example c(a,b) = 10*a + b\n");
+	printf("            So c(3,1) = 31\n");
 }
 
 int main(int argc, char* argv[]) {
 	// extract nrs from command line
-	if (argc < 5) {
-		printf("Give the four numbers as arguments\n");
+	int nrs_read = 0;
+	int x[4]; // the numbers
+	bool single_target = false;
+	int target_given = 0;
+
+	for (int argidx = 1; argidx < argc; ++argidx) {
+		char* arg = argv[argidx];
+		if (isdigit(arg[0]))
+			x[nrs_read++] = atoi(arg);
+		else { // arg starts with non-digit
+			while (*arg) {
+				switch (*arg) {
+					case 's':
+						g_only_show_solvable = true;
+						break;
+					case 'a':
+						g_show_all = true;
+						break;
+					case 't':
+						++arg;
+						while (isdigit(*arg)){
+							single_target = true;
+							target_given = 10 * target_given + *arg - '0';
+							++arg;
+						}
+						--arg; // counter ++arg later
+						break;
+					case 'o':
+						fprintf(stderr, "Option 'o' not supported yet\n");
+						break;
+					default:
+						break; // default is to ignore char
+				}
+				++arg;
+			}
+		}
+	}
+
+	if (nrs_read < 4) {
+		usage(argv[0]);
 		return -1;
 	}
-	int x[4];
-	for (int ii = 0; ii < 4; ++ii)
-		x[ii] = atoi(argv[1 + ii]);
+
 	// Solve for the numbers
-	for (int target = 1; target <= 10; ++target)
-		solve(x, target, false);
+	for (int target = 1; target <= 10; ++target) {
+		if (!single_target || target == target_given) {
+			bool solvable = solve(x, target);
+			if (g_only_show_solvable)
+				printf("%4d: %ssolvable\n", target, (solvable?"":"un"));
+		}
+	}
 
 	return 0;
 }
