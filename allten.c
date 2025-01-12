@@ -102,18 +102,19 @@ bool next_perm(int a[], int len) {
 	return (idxPivot >= 0);
 }
 
-bool check_answer(NumDen* res, bool answers[], const char* format,
+bool check_answer(NumDen* res, int target) {
+	return res->den != 0 && res->num == target * res->den;
+}
+
+void print_solution(const char* format, NumDen* res,
 		int a, int b, int c, int d, Operation op1, Operation op2, Operation op3) {
-	char totformat[80];
-	int ans = (res->den != 0 && res->num % res->den == 0) ? res->num/res->den : 0;
-	if (ans >= 1 && ans <= 10) {
-		if (!answers[ans - 1]) {
-			answers[ans -  1] = true;
-			sprintf(totformat, "%%2d = %s\n", format);
-			printf(totformat, ans, a, opstr[op1], b, opstr[op2], c, opstr[op3], d);
-		}
+	if (res->den != 0 && res->num % res->den == 0) {
+		char totformat[80];
+		sprintf(totformat, "%%4d = %s\n", format);
+		printf(totformat, res->num/res->den, a, opstr[op1], b, opstr[op2], c, opstr[op3], d);
 	}
-	return ans != 0;
+	else
+		fprintf(stderr, "Invalid solution given to print_solution()\n");
 }
 
 void usage(const char* progname) {
@@ -128,7 +129,7 @@ void usage(const char* progname) {
 	printf("               So c(3,1) = 31\n");
 }
 
-void solve(int n[]) {
+void solve(int n[], int target, bool find_all) {
 	// There are 5 basic forms
 	// (a@b)@(c@d)
 	// ((a@b)@c)@d
@@ -139,7 +140,6 @@ void solve(int n[]) {
 	NumDen nd[4];
 	NumDen res1, res2, res3;
 
-	bool answers[10] = {false};
 	int idx[4] = {0, 1, 2, 3}; // idx into n[]
 	do { // loops over permutations of idx[]
 		// init numdens
@@ -152,33 +152,53 @@ void solve(int n[]) {
 					(*ops[op1])(&nd[0], &nd[1], &res1);
 					(*ops[op2])(&nd[2], &nd[3], &res2);
 					(*ops[op3])(&res1, &res2, &res3);
-					check_answer(&res3, answers, "(%d%s%d)%s(%d%s%d)",
-					nd[0].num, nd[1].num, nd[2].num, nd[3].num, op1, op3, op2);
+					if (check_answer(&res3, target)) {
+						print_solution("(%d%s%d)%s(%d%s%d)", &res3,
+							nd[0].num, nd[1].num, nd[2].num, nd[3].num, op1, op3, op2);
+						if (!find_all)
+							return;
+					}
 					if (op2 != CONCAT) {
 						// ((a@b)@c)@d
 						(*ops[op1])(&nd[0], &nd[1], &res1);
 						(*ops[op2])(&res1, &nd[2], &res2);
 						(*ops[op3])(&res2, &nd[3], &res3);
-						check_answer(&res3, answers, "((%d%s%d)%s%d)%s%d",
-						nd[0].num, nd[1].num, nd[2].num, nd[3].num, op1, op2, op3);
+						if (check_answer(&res3, target)) {
+							print_solution("((%d%s%d)%s%d)%s%d", &res3,
+								nd[0].num, nd[1].num, nd[2].num, nd[3].num, op1, op2, op3);
+							if (!find_all)
+								return;
+						}
 						// (a@(b@c))@d
 						(*ops[op1])(&nd[1], &nd[2], &res1);
 						(*ops[op2])(&nd[0], &res1, &res2);
 						(*ops[op3])(&res2, &nd[3], &res3);
-						check_answer(&res3, answers, "(%d%s(%d%s%d))%s%d",
-						nd[0].num, nd[1].num, nd[2].num, nd[3].num, op2, op1, op3);
+						if (check_answer(&res3, target)) {
+							print_solution("(%d%s(%d%s%d))%s%d", &res3,
+								nd[0].num, nd[1].num, nd[2].num, nd[3].num, op2, op1, op3);
+							if (!find_all)
+								return;
+						}
 						// a@((b@c)@d)
 						(*ops[op1])(&nd[1], &nd[2], &res1);
 						(*ops[op2])(&res1, &nd[3], &res2);
 						(*ops[op3])(&nd[0], &res2, &res3);
-						check_answer(&res3, answers, "%d%s((%d%s%d)%s%d)",
-						nd[0].num, nd[1].num, nd[2].num, nd[3].num, op3, op1, op2);
+						if (check_answer(&res3, target)) {
+							print_solution("%d%s((%d%s%d)%s%d)", &res3,
+								nd[0].num, nd[1].num, nd[2].num, nd[3].num, op3, op1, op2);
+							if (!find_all)
+								return;
+						}
 						// a@(b@(c@d))
 						(*ops[op1])(&nd[2], &nd[3], &res1);
 						(*ops[op2])(&nd[1], &res1, &res2);
 						(*ops[op3])(&nd[0], &res2, &res3);
-						check_answer(&res3, answers, "%d%s(%d%s(%d%s%d))",
-						nd[0].num, nd[1].num, nd[2].num, nd[3].num, op3, op2, op1);
+						if (check_answer(&res3, target)) {
+							print_solution("%d%s(%d%s(%d%s%d))", &res3,
+								nd[0].num, nd[1].num, nd[2].num, nd[3].num, op3, op2, op1);
+							if (!find_all)
+								return;
+						}
 					}
 				}
 			}
@@ -196,7 +216,8 @@ int main(int argc, char* argv[]) {
 	for (int ii = 0; ii < 4; ++ii)
 		x[ii] = atoi(argv[1 + ii]);
 	// Solve for the numbers
-	solve(x);
+	for (int target = 1; target <= 10; ++target)
+		solve(x, target, false);
 
 	return 0;
 }
