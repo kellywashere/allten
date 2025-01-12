@@ -4,14 +4,21 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <string.h>
 
 static bool g_only_show_solvable = false; // when true: only showw whether or not sol exists
 static bool g_show_all = false;           // when true: all solutions are given for each target
+static char g_allowed_ops[] = "+-*/c"; // default allowed operations
 
 typedef struct NumDen {
 	int num;
 	int den;
 } NumDen;
+
+typedef void (*op_fn)(NumDen* nd1, NumDen* nd2, NumDen* res);
+
+// following array is filled with function pointers
+op_fn g_ops[5];
 
 typedef enum {
 	// Commutative ops
@@ -28,6 +35,10 @@ typedef enum {
 	NR_OPS
 } Operation;
 
+static bool is_commutative(Operation op) {
+	return op == ADD || op == MUL;
+}
+
 const char* opstr[5] = {
 	" + ",
 	" * ",
@@ -35,8 +46,6 @@ const char* opstr[5] = {
 	" / ",
 	""
 };
-
-typedef void (*op_fn)(NumDen* nd1, NumDen* nd2, NumDen* res);
 
 void set(NumDen* nd, int n, int d) {
 	nd->num = n;
@@ -74,7 +83,6 @@ void concat(NumDen* nd1, NumDen* nd2, NumDen* res) {
 	res->den = 1;
 }
 
-op_fn ops[] = {plus, times, minus, divby, concat};
 
 bool next_perm(int a[], int len) {
 	// returns false when no next permutation exists
@@ -121,7 +129,9 @@ void print_solution(const char* format, NumDen* res,
 		fprintf(stderr, "Invalid solution given to print_solution()\n");
 }
 
-bool solve(int n[], int target) {
+// helper function:
+static bool solve_ops(NumDen nd[], int idx[], int target,
+		Operation op1, Operation op2, Operation op3) {
 	// There are 5 basic forms
 	// (a@b)@(c@d)
 	// ((a@b)@c)@d
@@ -129,9 +139,113 @@ bool solve(int n[], int target) {
 	// a@((b@c)@d)
 	// a@(b@(c@d))
 	// @ is operator. This can only be concat when applied to original numbers, not to intermed results
-	NumDen nd[4];
-	NumDen res1, res2, res3;
+
+	// op3 can never be concat
+	if (op3 == CONCAT)
+		return false;
+
+	NumDen res1, res2, res3; // in between results
 	bool solvable = false;
+
+	// (a@b)@(c@d)
+	// to limit outputs, we only allow commutative ops when idx first operand < idx second operand
+	if ((!is_commutative(op1) || idx[0] < idx[1]) && (!is_commutative(op2) || idx[2] < idx[3])) {
+		(*g_ops[op1])(&nd[0], &nd[1], &res1);
+		(*g_ops[op2])(&nd[2], &nd[3], &res2);
+		(*g_ops[op3])(&res1, &res2, &res3);
+		if (check_answer(&res3, target)) {
+			solvable = true;
+			if (!g_only_show_solvable)
+				print_solution("(%d%s%d)%s(%d%s%d)", &res3,
+					nd[0].num, nd[1].num, nd[2].num, nd[3].num, op1, op3, op2);
+			if (!g_show_all)
+				return true;
+		}
+	}
+
+	// from here on, op2 is not allowed to be concat
+	if (op2 == CONCAT)
+		return solvable;
+
+	// ((a@b)@c)@d
+	if (!is_commutative(op1) || idx[0] < idx[1]) {
+		(*g_ops[op1])(&nd[0], &nd[1], &res1);
+		(*g_ops[op2])(&res1, &nd[2], &res2);
+		(*g_ops[op3])(&res2, &nd[3], &res3);
+		if (check_answer(&res3, target)) {
+			solvable = true;
+			if (!g_only_show_solvable)
+				print_solution("((%d%s%d)%s%d)%s%d", &res3,
+					nd[0].num, nd[1].num, nd[2].num, nd[3].num, op1, op2, op3);
+			if (!g_show_all)
+				return true;
+		}
+	}
+
+	// (a@(b@c))@d
+	 if (!is_commutative(op1) || idx[1] < idx[2]) {
+		(*g_ops[op1])(&nd[1], &nd[2], &res1);
+		(*g_ops[op2])(&nd[0], &res1, &res2);
+		(*g_ops[op3])(&res2, &nd[3], &res3);
+		if (check_answer(&res3, target)) {
+			solvable = true;
+			if (!g_only_show_solvable)
+				print_solution("(%d%s(%d%s%d))%s%d", &res3,
+					nd[0].num, nd[1].num, nd[2].num, nd[3].num, op2, op1, op3);
+			if (!g_show_all)
+				return true;
+		}
+	}
+
+	// a@((b@c)@d)
+	if (!is_commutative(op1) || idx[1] < idx[2]) {
+		(*g_ops[op1])(&nd[1], &nd[2], &res1);
+		(*g_ops[op2])(&res1, &nd[3], &res2);
+		(*g_ops[op3])(&nd[0], &res2, &res3);
+		if (check_answer(&res3, target)) {
+			solvable = true;
+			if (!g_only_show_solvable)
+				print_solution("%d%s((%d%s%d)%s%d)", &res3,
+					nd[0].num, nd[1].num, nd[2].num, nd[3].num, op3, op1, op2);
+			if (!g_show_all)
+				return true;
+		}
+	}
+
+	// a@(b@(c@d))
+	if (!is_commutative(op1) || idx[2] < idx[3]) {
+		(*g_ops[op1])(&nd[2], &nd[3], &res1);
+		(*g_ops[op2])(&nd[1], &res1, &res2);
+		(*g_ops[op3])(&nd[0], &res2, &res3);
+		if (check_answer(&res3, target)) {
+			solvable = true;
+			if (!g_only_show_solvable)
+				print_solution("%d%s(%d%s(%d%s%d))", &res3,
+					nd[0].num, nd[1].num, nd[2].num, nd[3].num, op3, op2, op1);
+			if (!g_show_all)
+				return true;
+		}
+	}
+	return solvable;
+}
+
+bool solve(int n[], int target) {
+	NumDen nd[4];
+	bool solvable = false;
+
+	// init fn table
+	for (Operation ii = 0; ii < NR_OPS; ++ii)
+		g_ops[ii] = NULL;
+	if (strchr(g_allowed_ops, '+'))
+		g_ops[ADD] = plus;
+	if (strchr(g_allowed_ops, '-'))
+		g_ops[SUB] = minus;
+	if (strchr(g_allowed_ops, '*'))
+		g_ops[MUL] = times;
+	if (strchr(g_allowed_ops, '/'))
+		g_ops[DIV] = divby;
+	if (strchr(g_allowed_ops, 'c'))
+		g_ops[CONCAT] = concat;
 
 	int idx[4] = {0, 1, 2, 3}; // idx into n[]
 	do { // loops over permutations of idx[]
@@ -139,69 +253,15 @@ bool solve(int n[], int target) {
 		for (int ii = 0; ii < 4; ++ii)
 			set(&nd[ii], n[idx[ii]], 1);
 		for (Operation op1 = ADD; op1 <= CONCAT; ++op1) {
+			if (!g_ops[op1]) continue;
 			for (Operation op2 = ADD; op2 <= CONCAT; ++op2) {
+				if (!g_ops[op2]) continue;
 				for (Operation op3 = ADD; op3 < CONCAT; ++op3) { // op3 can never be concat
-					// (a@b)@(c@d)
-					(*ops[op1])(&nd[0], &nd[1], &res1);
-					(*ops[op2])(&nd[2], &nd[3], &res2);
-					(*ops[op3])(&res1, &res2, &res3);
-					if (check_answer(&res3, target)) {
+					if (!g_ops[op3]) continue;
+					if (solve_ops(nd, idx, target, op1, op2, op3)) {
 						solvable = true;
-						if (!g_only_show_solvable)
-							print_solution("(%d%s%d)%s(%d%s%d)", &res3,
-								nd[0].num, nd[1].num, nd[2].num, nd[3].num, op1, op3, op2);
 						if (!g_show_all)
 							return true;
-					}
-					if (op2 != CONCAT) {
-						// ((a@b)@c)@d
-						(*ops[op1])(&nd[0], &nd[1], &res1);
-						(*ops[op2])(&res1, &nd[2], &res2);
-						(*ops[op3])(&res2, &nd[3], &res3);
-						if (check_answer(&res3, target)) {
-							solvable = true;
-							if (!g_only_show_solvable)
-								print_solution("((%d%s%d)%s%d)%s%d", &res3,
-									nd[0].num, nd[1].num, nd[2].num, nd[3].num, op1, op2, op3);
-							if (!g_show_all)
-								return true;
-						}
-						// (a@(b@c))@d
-						(*ops[op1])(&nd[1], &nd[2], &res1);
-						(*ops[op2])(&nd[0], &res1, &res2);
-						(*ops[op3])(&res2, &nd[3], &res3);
-						if (check_answer(&res3, target)) {
-							solvable = true;
-							if (!g_only_show_solvable)
-								print_solution("(%d%s(%d%s%d))%s%d", &res3,
-									nd[0].num, nd[1].num, nd[2].num, nd[3].num, op2, op1, op3);
-							if (!g_show_all)
-								return true;
-						}
-						// a@((b@c)@d)
-						(*ops[op1])(&nd[1], &nd[2], &res1);
-						(*ops[op2])(&res1, &nd[3], &res2);
-						(*ops[op3])(&nd[0], &res2, &res3);
-						if (check_answer(&res3, target)) {
-							solvable = true;
-							if (!g_only_show_solvable)
-								print_solution("%d%s((%d%s%d)%s%d)", &res3,
-									nd[0].num, nd[1].num, nd[2].num, nd[3].num, op3, op1, op2);
-							if (!g_show_all)
-								return true;
-						}
-						// a@(b@(c@d))
-						(*ops[op1])(&nd[2], &nd[3], &res1);
-						(*ops[op2])(&nd[1], &res1, &res2);
-						(*ops[op3])(&nd[0], &res2, &res3);
-						if (check_answer(&res3, target)) {
-							solvable = true;
-							if (!g_only_show_solvable)
-								print_solution("%d%s(%d%s(%d%s%d))", &res3,
-									nd[0].num, nd[1].num, nd[2].num, nd[3].num, op3, op2, op1);
-							if (!g_show_all)
-								return true;
-						}
 					}
 				}
 			}
@@ -221,6 +281,10 @@ void usage(const char* progname) {
 	printf("            e.g.: o+-/*c\n");
 	printf("            operator c is the concat operator. For example c(a,b) = 10*a + b\n");
 	printf("            So c(3,1) = 31\n");
+}
+
+static int cmp_int(const void* p1, const void* p2) {
+	return *(const int*)p1 - *(const int*)p2;
 }
 
 int main(int argc, char* argv[]) {
@@ -253,7 +317,8 @@ int main(int argc, char* argv[]) {
 						--arg; // counter ++arg later
 						break;
 					case 'o':
-						fprintf(stderr, "Option 'o' not supported yet\n");
+						strncpy(g_allowed_ops, arg + 1, 5);
+						printf("Allowed: %s\n", g_allowed_ops);
 						break;
 					default:
 						break; // default is to ignore char
@@ -267,6 +332,8 @@ int main(int argc, char* argv[]) {
 		usage(argv[0]);
 		return -1;
 	}
+
+	qsort(x, 4, sizeof(x[0]), cmp_int); // consistent outputs, independent of order
 
 	// Solve for the numbers
 	for (int target = 1; target <= 10; ++target) {
