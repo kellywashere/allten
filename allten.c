@@ -326,7 +326,7 @@ int main(int argc, char* argv[]) {
 						break;
 					case 'o':
 						strncpy(g_allowed_ops, arg + 1, 5);
-						printf("Allowed: %s\n", g_allowed_ops);
+						//printf("Allowed: %s\n", g_allowed_ops);
 						break;
 					default:
 						break; // default is to ignore char
