@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include <string.h>
 
+static bool g_show_all_solvable_inputs = false; // if true, shows all fully solvable input cases
 static bool g_only_show_solvable = false; // when true: only showw whether or not sol exists
 static bool g_show_all = false;           // when true: all solutions are given for each target
 static char g_allowed_ops[] = "+-*/c"; // default allowed operations
@@ -274,6 +275,7 @@ void usage(const char* progname) {
 	printf("Usage: %s [options] nr1 nr2 nr3 nr4\n", progname);
 	printf("\nIf no target given, all targets 1..10 are attempted\n");
 	printf("Options:\n");
+	printf("  h:      show this help text\n");
 	printf("  s:      only shows whether or not the problem is solvable\n");
 	printf("  a:      shows ALL solutions (tends to produce a lot of output\n");
 	printf("  t<n>:   instead of finding all targets 1..10, finds only give target\n");
@@ -301,6 +303,12 @@ int main(int argc, char* argv[]) {
 		else { // arg starts with non-digit
 			while (*arg) {
 				switch (*arg) {
+					case 'h':
+						usage(argv[0]);
+						return 1;
+					case '?': // hidden option
+						g_show_all_solvable_inputs = true;
+						break;
 					case 's':
 						g_only_show_solvable = true;
 						break;
@@ -328,9 +336,27 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
+	if (g_show_all_solvable_inputs) {
+		g_only_show_solvable = true; // suppress solution printing
+		for (int n = 0; n < 9999; ++n) {
+			int nn = n;
+			for (int ii = 0; ii < 3; ++ii) {
+				x[ii] = nn % 10;
+				nn /= 10;
+			}
+			bool solvable = true;
+			for (int target = 1; solvable && target <= 10; ++target) {
+				if (!solve(x, target))
+					solvable = false;
+			}
+			printf("%04d: %ssolvable\n", n, solvable?"":"not ");
+		}
+		return 0;
+	}
+
 	if (nrs_read < 4) {
 		usage(argv[0]);
-		return -1;
+		return 1;
 	}
 
 	qsort(x, 4, sizeof(x[0]), cmp_int); // consistent outputs, independent of order
