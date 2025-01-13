@@ -7,9 +7,9 @@
 #include <string.h>
 
 static bool g_show_all_solvable_inputs = false; // if true, shows all fully solvable input cases
-static bool g_only_show_solvable = false; // when true: only showw whether or not sol exists
-static bool g_show_all = false;           // when true: all solutions are given for each target
-static char g_allowed_ops[] = "+-*/c"; // default allowed operations
+static bool g_only_show_solvable = false;       // when true: only showw whether or not sol exists
+static bool g_show_all = false;                 // when true: all solutions are given for each target
+static char g_allowed_ops[] = "+-*/c";          // default allowed operations
 
 typedef struct NumDen {
 	int num;
@@ -336,11 +336,12 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
+	// hidden option ?
 	if (g_show_all_solvable_inputs) {
 		g_only_show_solvable = true; // suppress solution printing
 		for (int n = 0; n < 9999; ++n) {
 			int nn = n;
-			for (int ii = 0; ii < 3; ++ii) {
+			for (int ii = 0; ii < 4; ++ii) {
 				x[ii] = nn % 10;
 				nn /= 10;
 			}
