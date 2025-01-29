@@ -356,7 +356,7 @@ int main(int argc, char* argv[]) {
 			printf("%04d: %ssolvable\n", n, solvable?"":"not ");
 #else
 			if (solvable) {
-				printf("%04d, ", n);
+				printf("%d, ", n); // avoid leading 0s cause javascript gets confused by it :(
 				++colcount;
 				if (colcount == 20) {
 					printf("\n");
