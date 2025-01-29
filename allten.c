@@ -1,4 +1,5 @@
-// TODO: options
+// For hidden option ?
+// #ifdef ALL_SOLVABLE_SINGLE_COL
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -339,6 +340,7 @@ int main(int argc, char* argv[]) {
 	// hidden option ?
 	if (g_show_all_solvable_inputs) {
 		g_only_show_solvable = true; // suppress solution printing
+		int colcount = 0; // printing helper var
 		for (int n = 0; n < 9999; ++n) {
 			int nn = n;
 			for (int ii = 0; ii < 4; ++ii) {
@@ -350,8 +352,23 @@ int main(int argc, char* argv[]) {
 				if (!solve(x, target))
 					solvable = false;
 			}
+#ifdef ALL_SOLVABLE_SINGLE_COL
 			printf("%04d: %ssolvable\n", n, solvable?"":"not ");
+#else
+			if (solvable) {
+				printf("%04d, ", n);
+				++colcount;
+				if (colcount == 20) {
+					printf("\n");
+					colcount = 0;
+				}
+			}
+#endif
 		}
+#ifndef ALL_SOLVABLE_SINGLE_COL
+		if (colcount)
+			printf("\n");
+#endif
 		return 0;
 	}
 
